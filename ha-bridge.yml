@@ -1,0 +1,88 @@
+# ha-bridge.yml:
+# https://github.com/bwssytems/ha-bridge
+---
+- name: "Install and Update ha-bridge"
+  hosts: localhost
+  connection: local
+
+  handlers:
+    - name: Restart ha-bridge
+      systemd:
+        name: ha-bridge
+        daemon_reload: yes
+        state: restarted
+      become: yes
+
+  tasks:
+
+    # - name: Show processor model
+    #   debug:
+    #     msg: "{{ ansible_machine }} and {{ ansible_architecture }}"
+        #armv7l for Raspberry Pi 3.  armv6l for Raspberry Pi Zero
+
+    - name: Install OpenJDK 8 Zero for armv6l (Rapsberry Pi Zero compatibility)
+      apt:
+        name: openjdk-8-jre-zero
+        state: latest
+        update_cache: yes
+      become: yes
+      when: ansible_architecture == 'armv6l'
+
+    - name: Install OpenJDK 8
+      apt:
+        name: openjdk-8-jre
+        state: latest
+        update_cache: yes
+      become: yes
+      when: ansible_architecture != 'armv6l'
+
+    - name: Create ha-bridge folder at /usr/local/ha-bridge/
+      file:
+        path: /usr/local/ha-bridge
+        state: directory
+      become: yes
+
+    - name: Get URL to current ha-bridge release (Java 8 only)
+      shell: echo $(curl -s https://api.github.com/repos/bwssytems/ha-bridge/releases/latest | grep 'browser_' | grep -v java11 | cut -d\" -f4)
+      register: ha_bridge_url
+      changed_when: False
+
+    - name: Get ha-bridge file name
+      shell: 'basename {{ ha_bridge_url.stdout }}'
+      register: ha_bridge_filename
+      changed_when: False
+
+    - name: Download current release of ha-bridge
+      get_url:
+        url: "{{ ha_bridge_url.stdout }}"
+        dest: /usr/local/ha-bridge
+        force: no
+      become: yes
+
+    - name: Creating ha-bridge.service file
+      blockinfile:
+        path: /etc/systemd/system/ha-bridge.service
+        create: yes
+        block: |
+          [Unit]
+          Description=HA Bridge
+          Wants=network.target
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/usr/local/ha-bridge
+          ExecStart=/usr/bin/java -jar -Dconfig.file=/usr/local/ha-bridge/data/habridge.config /usr/local/ha-bridge/{{ ha_bridge_filename.stdout }}
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart ha-bridge
+      become: yes
+
+    - name: Enabling ha-bridge service
+      systemd:
+        name: ha-bridge
+        daemon_reload: yes
+        enabled: yes
+        state: started
+      become: yes

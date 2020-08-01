@@ -1,0 +1,276 @@
+# playbook.yml:
+---
+- name: "Install lirc 10.1 with patches for kernel 4.19+"
+  hosts: localhost
+  connection: local
+
+  # pre_tasks:
+  #   - name: Update apt cache if needed.
+  #     apt: update_cache=yes cache_valid_time=3600
+  #     become: yes
+
+  handlers:
+    - name: restart lircd
+      systemd:
+        name: lircd
+        state: restarted
+      become: yes
+
+    - name: restart lircd-tx
+      systemd:
+        name: lircd-tx
+        state: restarted
+      become: yes
+
+  tasks:
+
+    - name: Gather  package facts
+      package_facts:
+        manager: auto
+
+    - name: Patch and install lirc 10.1 if lirc is not installed (This will take a long time) (If package manager version is installed, remove and run again)
+      shell:
+        command: |
+          cd /tmp
+          su -c "grep '^deb ' /etc/apt/sources.list | sed 's/^deb/deb-src/g' > /etc/apt/sources.list.d/deb-src.list"
+          apt update
+          apt install devscripts -y
+          apt remove lirc liblirc0 liblirc-client0 -y
+          apt install dh-exec doxygen expect libasound2-dev libftdi1-dev libsystemd-dev libudev-dev libusb-1.0-0-dev libusb-dev man2html-base portaudio19-dev socat xsltproc python3-yaml dh-python libx11-dev python3-dev python3-setuptools -y
+          mkdir build
+          cd build
+          apt source lirc
+          wget https://raw.githubusercontent.com/neuralassembly/raspi/master/lirc-gpio-ir-0.10.patch
+          patch -p0 -i lirc-gpio-ir-0.10.patch
+          cd lirc-0.10.1
+          debuild -uc -us -b
+          cd ..
+          apt install ./liblirc0_0.10.1-5.2_armhf.deb ./liblircclient0_0.10.1-5.2_armhf.deb ./lirc_0.10.1-5.2_armhf.deb -y
+          #Install is expected to fail at this point
+          cp /etc/lirc/lirc_options.conf.dist /etc/lirc/lirc_options.conf
+          cp /etc/lirc/lircd.conf.dist /etc/lirc/lircd.conf
+          mv /etc/lirc/lircd.conf.d/devinput.lircd.conf /etc/lirc/lircd.conf.d/devinput.lircd.conf.dist
+          apt install ./liblirc0_0.10.1-5.2_armhf.deb ./liblircclient0_0.10.1-5.2_armhf.deb ./lirc_0.10.1-5.2_armhf.deb -y
+      become: yes
+      ignore_errors: yes
+      when: "'lirc' not in ansible_facts.packages"
+
+      # Patched install with apt list lirc shows
+      # lirc/stable,now 0.10.1-5.2 armhf [installed]
+
+
+    - name: Enable dtoverlays for lirc-rx
+      lineinfile:
+        path: /boot/config.txt
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        - regexp: '.*dtoverlay=gpio-ir,.*'
+          line: 'dtoverlay=gpio-ir,gpio_pin=17'
+        # gpio-ir-tx is standard overlay, but may not work well with raw codes
+        # - regexp: '.*dtoverlay=.*-ir-tx,.*'
+        #   line: 'dtoverlay=gpio-ir-tx,gpio_pin=18'
+        - regexp: '.*dtoverlay=.*-ir-tx,.*'
+          line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
+      become: yes
+
+    # - name: Enable dtoverlays for lirc-rx
+    #   lineinfile:
+    #     path: /boot/config.txt
+    #     regexp: '.*dtoverlay=gpio-ir,.*'
+    #     line: 'dtoverlay=gpio-ir,gpio_pin=17'
+    #   become: yes
+
+    # - name: Enable dtoverlays for lirc-tx
+    #   lineinfile:
+    #     path: /boot/config.txt
+    #     regexp: '.*dtoverlay=.*-ir-tx,.*'
+    #     line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
+    #   become: yes
+
+    - name: Create udev entries to have stable send and receive devices as lirc-tx and lirc-rx
+      blockinfile:
+        path: /etc/udev/rules.d/71-lirc.rules
+        create: yes
+        block: |
+          ACTION=="add", SUBSYSTEM=="lirc", DRIVERS=="gpio_ir_recv", SYMLINK+="lirc-rx"
+          ACTION=="add", SUBSYSTEM=="lirc", DRIVERS=="gpio-ir-tx", SYMLINK+="lirc-tx"
+          ACTION=="add", SUBSYSTEM=="lirc", DRIVERS=="pwm-ir-tx", SYMLINK+="lirc-tx"
+      become: yes
+
+    - name: Configure lirc-rx in file lirc_options.conf
+      lineinfile:
+        path: /etc/lirc/lirc_options.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line}}"
+      with_items:
+        # device
+        - regexp: '^device'
+          line: 'device          = /dev/lirc-rx'
+        # driver
+        - regexp: '^driver'
+          line: 'driver          = default'
+        # listen
+        - regexp: '^.*listen'
+          line: 'listen          = 0.0.0.0:8766'
+      notify: restart lircd
+      become: yes
+
+
+    # - name: Configure lirc-rx device
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_options.conf
+    #     regexp: '^device'
+    #     line: 'device          = /dev/lirc-rx'
+    #   become: yes
+
+    # - name: Configure lirc-rx driver to auto
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_options.conf
+    #     regexp: '^driver'
+    #     line: 'driver          = default'
+    #   become: yes
+
+    # - name: Configure lirc-rx listen enabled
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_options.conf
+    #     regexp: '^.*listen'
+    #     line: 'listen          = 0.0.0.0:8766'
+    #   become: yes
+
+    - name: Copy lirc_options.conf to become lirc_tx_options.conf
+      copy:
+        src: /etc/lirc/lirc_options.conf
+        dest: /etc/lirc/lirc_tx_options.conf
+        force: no
+      become: yes
+
+    - name: Configure lirc-tx in file lirc_tx_options.conf
+      lineinfile:
+        path: /etc/lirc/lirc_tx_options.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        # device
+        - regexp: '^device'
+          line: 'device          = /dev/lirc-tx'
+        # output
+        - regexp: '^output'
+          line: 'output          = /var/run/lirc/lircd-tx'
+        # pidfile
+        - regexp: '^pidfile'
+          line: 'pidfile         = /var/run/lirc/lircd-tx.pid'
+        # listen
+        - regexp: '^.*listen'
+          line: 'listen          = 0.0.0.0:8765'
+        # connect
+        - regexp: '^.*connect'
+          line: 'connect         = 127.0.0.1:8766'
+      notify: restart lircd-tx
+      become: yes
+
+    # - name: Configure lirc-tx device
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_tx_options.conf
+    #     regexp: '^device'
+    #     line: 'device          = /dev/lirc-tx'
+    #   become: yes
+
+    # - name: Configure lirc-tx output
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_tx_options.conf
+    #     regexp: '^output'
+    #     line: 'output          = /var/run/lirc/lircd-tx'
+    #   become: yes
+
+    # - name: Configure lirc-tx pidfile
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_tx_options.conf
+    #     regexp: '^pidfile'
+    #     line: 'pidfile         = /var/run/lirc/lircd-tx.pid'
+    #   become: yes
+
+    # - name: Configure lirc-tx listen
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_tx_options.conf
+    #     regexp: '^.*listen'
+    #     line: 'listen          = 0.0.0.0:8765'
+    #   become: yes
+
+    # - name: Configure lirc-tx connect
+    #   lineinfile:
+    #     path: /etc/lirc/lirc_tx_options.conf
+    #     regexp: '^.*connect'
+    #     line: 'connect         = 127.0.0.1:8766'
+    #   become: yes
+
+    - name: Create /etc/systemd/system/lircd-tx.service (from the output of systemctl cat lircd)
+      blockinfile:
+        path: /etc/systemd/system/lircd-tx.service
+        create: yes
+        block: |
+          [Unit]
+          Documentation=man:lircd(8)
+          Documentation=http://lirc.org/html/configure.html
+          Description=Second lircd, the transmitter
+          Wants=lircd-setup.service
+          After=network.target lircd-setup.service lircd.service
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/sbin/lircd --nodaemon --options-file /etc/lirc/lirc_tx_options.conf
+          ; User=lirc
+          ; Group=lirc
+
+          ; Hardening opts, see systemd.exec(5). Doesn't add much unless
+          ; not running as root.
+          ;
+          ; # Required for dropping privileges in --effective-user.
+          ; CapabilityBoundingSet=CAP_SETEUID
+          ; MemoryDenyWriteExecute=true
+          ; NoNewPrivileges=true
+          ; PrivateTmp=true
+          ; ProtectHome=true
+          ; ProtectSystem=full
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart lircd-tx
+      become: yes
+
+    - name: Create /etc/systemd/system/lircd-tx.socket (from the output of systemctl cat lircd.socket)
+      blockinfile:
+        path: /etc/systemd/system/lircd-tx.socket
+        create: yes
+        block: |
+          [Socket]
+          ListenStream=/run/lirc/lircd-tx
+
+          [Install]
+          WantedBy=sockets.target
+          Also=lircd-tx.service
+      notify: restart lircd-tx
+      become: yes
+
+    - name: Enabling and starting lirc services
+      systemd:
+        name: "{{ item.name }}"
+        daemon_reload: yes
+        enabled: yes
+        state: started
+      with_items:
+        - name: lircd
+        - name: lircd-tx
+      become: yes
+
+    - name: Copy remote configuration files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        force: no
+      with_items:
+        - src: files/remotes/Spectrafire.lircd.conf
+          dest: /etc/lirc/lircd.conf.d/
+        - src: files/remotes/RGB_LED_44_Button.lircd.conf
+          dest: /etc/lirc/lircd.conf.d/
+      become: yes
