@@ -1,0 +1,75 @@
+---
+- name: "Install lirc 10.1"
+  hosts: localhost
+  connection: local
+
+  handlers:
+    - name: restart lircd
+      systemd:
+        name: lircd
+        state: restarted
+      become: yes
+
+    - name: restart lircd-tx
+      systemd:
+        name: lircd-tx
+        state: restarted
+      become: yes
+
+
+  tasks:
+
+    - name: Gather package facts
+      package_facts:
+        manager: auto
+
+
+    - name: Enable dtoverlays for lirc-rx
+      lineinfile:
+        path: /boot/config.txt
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        - regexp: '.*dtoverlay=gpio-ir,.*'
+          line: 'dtoverlay=gpio-ir,gpio_pin=17'
+        # gpio-ir-tx is standard overlay, but may not work well with raw codes
+        - regexp: '.*dtoverlay=.*-ir-tx,.*'
+          line: 'dtoverlay=gpio-ir-tx,gpio_pin=18'
+        # If using raw codes in a remote file, use pwm-ir-tx instead of gpio-ir-tx
+        # - regexp: '.*dtoverlay=.*-ir-tx,.*'
+        #   line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
+      become: yes
+
+
+    - name: Install lirc 10.1 (Will encounter an error due to bug with files not being present during install)
+      apt:
+        name: lirc
+        state: latest
+        update_cache: yes
+      become: yes
+
+    - name: Copy/Rename files due to lirc bug preventing installation in 10.1
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        force: no
+      loop:
+        - src: /etc/lirc/lirc_options.conf.dist
+          dest: /etc/lirc/lirc_options.conf
+        - src: /etc/lirc/lircd.conf.dist
+          dest: /etc/lirc/lircd.conf
+        - src: /etc/lirc/lircd.conf.d/devinput.lircd.conf
+          dest: /etc/lirc/lircd.conf.d/devinput.lircd.conf.dist
+      become: yes
+
+    - name: Install lirc 10.1 (Second attempt if failed previously)
+      apt:
+        name: lirc
+        state: latest
+        update_cache: yes
+      become: yes
+
+    - name: Removing original devinput.lircd.conf file
+      file:
+        path: /etc/lirc/lircd.conf.d/devinput.lircd.conf.dist
+        state: absent
