@@ -1,5 +1,5 @@
-# ha-bridge.yml:
 # https://github.com/bwssytems/ha-bridge
+# Installation of ha-bridge to emulate a Philips Hue bulb for Alexa to control
 ---
 - name: "Install and Update ha-bridge"
   hosts: localhost
@@ -15,10 +15,6 @@
 
   tasks:
 
-    # - name: Show processor model
-    #   debug:
-    #     msg: "{{ ansible_machine }} and {{ ansible_architecture }}"
-        #armv7l for Raspberry Pi 3.  armv6l for Raspberry Pi Zero
 
     - name: Install OpenJDK 8 Zero for armv6l (Rapsberry Pi Zero compatibility)
       apt:
