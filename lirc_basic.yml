@@ -1,7 +1,9 @@
 ---
 - name: "Install lirc 10.1"
-  hosts: localhost
-  connection: local
+  # Installs and configures lirc, verified under kernel 5.4.51+ and lirc 0.10.1-6.2~deb10u1
+
+  hosts: all
+
 
   handlers:
     - name: restart lircd
@@ -10,21 +12,8 @@
         state: restarted
       become: yes
 
-    - name: restart lircd-tx
-      systemd:
-        name: lircd-tx
-        state: restarted
-      become: yes
-
-
   tasks:
-
-    - name: Gather package facts
-      package_facts:
-        manager: auto
-
-
-    - name: Enable dtoverlays for lirc-rx
+    - name: Enable dtoverlays for lirc
       lineinfile:
         path: /boot/config.txt
         regexp: "{{ item.regexp }}"
@@ -41,35 +30,27 @@
       become: yes
 
 
-    - name: Install lirc 10.1 (Will encounter an error due to bug with files not being present during install)
+    - name: Install lirc
       apt:
         name: lirc
         state: latest
         update_cache: yes
       become: yes
 
-    - name: Copy/Rename files due to lirc bug preventing installation in 10.1
-      copy:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
-        force: no
-      loop:
-        - src: /etc/lirc/lirc_options.conf.dist
-          dest: /etc/lirc/lirc_options.conf
-        - src: /etc/lirc/lircd.conf.dist
-          dest: /etc/lirc/lircd.conf
-        - src: /etc/lirc/lircd.conf.d/devinput.lircd.conf
-          dest: /etc/lirc/lircd.conf.d/devinput.lircd.conf.dist
+
+    - name: Configure lirc_options.conf file
+      lineinfile:
+        path: /etc/lirc/lirc_options.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line}}"
+      with_items:
+        - regexp: '^device'
+          line: 'device          = /dev/lirc0'
+        - regexp: '^driver'
+          line: 'driver          = default'
+      notify: restart lircd
       become: yes
 
-    - name: Install lirc 10.1 (Second attempt if failed previously)
-      apt:
-        name: lirc
-        state: latest
-        update_cache: yes
-      become: yes
 
-    - name: Removing original devinput.lircd.conf file
-      file:
-        path: /etc/lirc/lircd.conf.d/devinput.lircd.conf.dist
-        state: absent
+    - name: Disabling original devinput.lircd.conf file using devinput
+      command: mv /etc/lirc/lircd.conf.d/devinput.lircd.conf /etc/lirc/lircd.conf.d/devinput.lircd.dist
