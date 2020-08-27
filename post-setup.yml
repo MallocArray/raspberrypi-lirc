@@ -1,0 +1,19 @@
+---
+- name: "Add configuration files for ha-bridge and update"
+  hosts: all
+  gather_facts: no
+
+  tasks:
+    - name: Copy remote configuration files
+      copy:
+        src: files/remotes/
+        dest: /etc/lirc/lircd.conf.d/
+        force: no
+      become: yes
+
+    - name: Copy habridge backup files
+      copy:
+        src: habridge/backup/
+        dest: /usr/local/ha-bridge/data
+        force: no
+      become: yes
