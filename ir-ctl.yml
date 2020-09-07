@@ -1,0 +1,36 @@
+---
+- name: "Install ir-keytable and configure IR ports for use with ir-ctl"
+  # Installs and configures ir-keytable, verified under kernel 5.4.51+
+  # uses ir-ctl for sending and recording
+
+  hosts: localhost
+
+  handlers:
+    - name: restart device
+      reboot:
+      become: yes
+
+  tasks:
+    - name: Install ir-keytable
+      apt:
+        name: ir-keytable
+        state: latest
+        update_cache: yes
+      become: yes
+
+    - name: Enable dtoverlays for lirc device
+      lineinfile:
+        path: /boot/config.txt
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        # Enable if needing to record IR signals. Otherwise, leave disabled so only one /dev/lirc device is created
+        # - regexp: '.*dtoverlay=gpio-ir,.*'
+        #   line: 'dtoverlay=gpio-ir,gpio_pin=17'
+        - regexp: '.*dtoverlay=.*-ir-tx,.*'
+          line: 'dtoverlay=gpio-ir-tx,gpio_pin=18'
+        # If using raw codes in a remote file, use pwm-ir-tx may work better over gpio-ir-tx
+        # - regexp: '.*dtoverlay=.*-ir-tx,.*'
+        #   line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
+      notify: restart device
+      become: yes

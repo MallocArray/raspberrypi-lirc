@@ -1,0 +1,10 @@
+---
+
+- hosts: all
+  tasks:
+    - name: Include all tasks for new setup
+      include_tasks: "{{ item }}"
+      loop:
+        - ir-ctl.yml
+        - ha-bridge.yml
+        - post-setup.yml

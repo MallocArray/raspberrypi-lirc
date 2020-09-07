@@ -3,7 +3,6 @@
 ---
 - name: "Install and Update ha-bridge"
   hosts: localhost
-  connection: local
 
   handlers:
     - name: Restart ha-bridge
@@ -14,8 +13,6 @@
       become: yes
 
   tasks:
-
-
     - name: Install OpenJDK 8 Zero for armv6l (Rapsberry Pi Zero compatibility)
       apt:
         name: openjdk-8-jre-zero
@@ -43,10 +40,12 @@
       register: ha_bridge_url
       changed_when: False
 
+
     - name: Get ha-bridge file name
       shell: 'basename {{ ha_bridge_url.stdout }}'
       register: ha_bridge_filename
       changed_when: False
+
 
     - name: Download current release of ha-bridge
       get_url:
@@ -54,6 +53,7 @@
         dest: /usr/local/ha-bridge
         force: no
       become: yes
+
 
     - name: Creating ha-bridge.service file
       blockinfile:
@@ -74,6 +74,7 @@
           WantedBy=multi-user.target
       notify: Restart ha-bridge
       become: yes
+
 
     - name: Enabling ha-bridge service
       systemd:

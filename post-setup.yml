@@ -1,6 +1,6 @@
 ---
 - name: "Add configuration files for ha-bridge and update"
-  hosts: all
+  hosts: localhost
   gather_facts: no
 
   tasks:
@@ -8,6 +8,13 @@
       copy:
         src: files/remotes/
         dest: /etc/lirc/lircd.conf.d/
+        force: no
+      become: yes
+
+    - name: Copy remote TOML files
+      copy:
+        src: files/rc_keymaps
+        dest: /lib/udev/rc_keymaps/
         force: no
       become: yes
 
