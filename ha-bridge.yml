@@ -13,6 +13,21 @@
       become: yes
 
   tasks:
+    - name: Remove non-zero OpenJDK for armv6l
+      # If using the Raspberry Pi image with Recommended Software, it comes with OpenJDK 11 that is not compatible with armv6l in Pi Zero
+      # Removing these packages and installing openjdk-8-jre-zero allows ha-bridge to function
+      apt:
+        name: "{{ item }}"
+        state: absent
+        update_cache: yes
+      become: yes
+      loop:
+        - openjdk-11-jdk-headless
+        - openjdk-11-jre
+        - openjdk-11-jre-headless
+      when: ansible_architecture == 'armv6l'
+
+
     - name: Install OpenJDK 8 Zero for armv6l (Rapsberry Pi Zero compatibility)
       apt:
         name: openjdk-8-jre-zero
@@ -21,6 +36,7 @@
       become: yes
       when: ansible_architecture == 'armv6l'
 
+
     - name: Install OpenJDK 8
       apt:
         name: openjdk-8-jre
@@ -28,6 +44,7 @@
         update_cache: yes
       become: yes
       when: ansible_architecture != 'armv6l'
+
 
     - name: Create ha-bridge folder at /usr/local/ha-bridge/
       file:
