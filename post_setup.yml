@@ -11,10 +11,12 @@
     #     force: no
     #   become: yes
 
-    - name: Copy remote TOML files
+    - name: Copy ir-ctl raw IR files
+      # Recorded using the following command
+      # ir-ctl -rSpectrafire_KEY_POWER.toml -m -w -1 -d /dev/lirc1
       copy:
-        src: files/rc_keymaps
-        dest: /lib/udev/rc_keymaps/
+        src: files/ir-ctl-raw
+        dest: /usr/local/ha-bridge/data/ir-ctl-raw
         force: no
       become: yes
 
