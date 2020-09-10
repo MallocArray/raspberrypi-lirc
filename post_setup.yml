@@ -13,7 +13,7 @@
 
     - name: Copy ir-ctl raw IR files
       # Recorded using the following command
-      # ir-ctl -rSpectrafire_KEY_POWER.toml -m -w -1 -d /dev/lirc1
+      # ir-ctl -rSpectrafire_KEY_POWER.raw -m -w -1 -d /dev/lirc1
       copy:
         src: files/ir-ctl-raw
         dest: /usr/local/ha-bridge/data

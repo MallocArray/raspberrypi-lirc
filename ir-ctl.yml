@@ -24,7 +24,7 @@
         #   line: 'dtoverlay=gpio-ir,gpio_pin=17'
         - regexp: '.*dtoverlay=.*-ir-tx,.*'
           line: 'dtoverlay=gpio-ir-tx,gpio_pin=18'
-        # If using raw codes in a remote file, use pwm-ir-tx may work better over gpio-ir-tx
+        # If using raw codes in a remote file, use pwm-ir-tx may work better over gpio-ir-tx with lirc
         # - regexp: '.*dtoverlay=.*-ir-tx,.*'
         #   line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
       become: yes
