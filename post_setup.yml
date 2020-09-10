@@ -4,6 +4,14 @@
   gather_facts: no
 
   tasks:
+    - name: Update all apt packages
+      apt:
+        name: "*"
+        state: latest
+        force_apt_get: yes
+        update_cache: yes
+      become: yes
+
     # - name: Copy remote configuration files
     #   copy:
     #     src: files/remotes/
@@ -20,7 +28,7 @@
         force: no
       become: yes
 
-    - name: Copy habridge backup files
+    - name: Copy ha-bridge backup and supporting files
       copy:
         src: habridge/backup/
         dest: /usr/local/ha-bridge/data
