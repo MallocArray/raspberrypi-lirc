@@ -5,11 +5,6 @@
 
   hosts: localhost
 
-  handlers:
-    - name: restart device
-      reboot:
-      become: yes
-
   tasks:
     - name: Install ir-keytable
       apt:
@@ -32,5 +27,4 @@
         # If using raw codes in a remote file, use pwm-ir-tx may work better over gpio-ir-tx
         # - regexp: '.*dtoverlay=.*-ir-tx,.*'
         #   line: 'dtoverlay=pwm-ir-tx,gpio_pin=18'
-      notify: restart device
       become: yes
