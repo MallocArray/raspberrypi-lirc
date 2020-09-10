@@ -16,7 +16,7 @@
       # ir-ctl -rSpectrafire_KEY_POWER.toml -m -w -1 -d /dev/lirc1
       copy:
         src: files/ir-ctl-raw
-        dest: /usr/local/ha-bridge/data/ir-ctl-raw
+        dest: /usr/local/ha-bridge/data
         force: no
       become: yes
 
